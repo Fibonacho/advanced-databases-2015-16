@@ -189,6 +189,7 @@ public class DBConnect {
         try {
             con.setTransactionIsolation(level);
         } catch (SQLException e) {
+            System.err.println("Setting transaction isolation level failed (read committed).");
             e.printStackTrace();
         }
         int cur;
@@ -216,6 +217,7 @@ public class DBConnect {
         try {
             con.setTransactionIsolation(level);
         } catch (SQLException e) {
+            System.err.println("Setting transaction isolation level failed (serializable).");
             e.printStackTrace();
         }
         int cur;
