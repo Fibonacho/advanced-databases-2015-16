@@ -9,8 +9,8 @@ import java.util.Random;
 public class DBConnect {
 
     Connection con = null;
-    Statement st = null;
-    ResultSet rs = null;
+    Statement st   = null;
+    ResultSet rs   = null;
 
     /**
      * constructor
@@ -76,7 +76,7 @@ public class DBConnect {
                                 + "primary key (id)"
                                 + ")"
                                 ;
-        
+
         try {
             st.executeUpdate(createTableSQL);
         } catch (SQLException e) {
@@ -104,11 +104,11 @@ public class DBConnect {
     /**
      * retrieve a list (of available seats)
      */
-    public ArrayList<String> getList(String qry) {
+    public ArrayList<String> getList(String query) {
         
         ArrayList<String> result = new ArrayList<String>();
         try {
-            rs = st.executeQuery(qry);
+            rs = st.executeQuery(query);
             
             if (rs.next()) {
                 do {
@@ -155,7 +155,7 @@ public class DBConnect {
     }
     
     /** 
-     *  The booking is done within 3 steps
+     * The booking is done within 3 steps - this method is used for testing (in Test.java)
      */
     public void bookSeat(String tableName) {
         
@@ -206,6 +206,42 @@ public class DBConnect {
             e.printStackTrace();
         }
     }
+  
+    /**
+     * send query to database (read committed)
+     */
+    public ArrayList<String> retrieveSeatsReadCommitted(String query) {
+    
+        ArrayList<String> result = new ArrayList<String>();
+        
+        System.out.println("read committed");
+        int level = Connection.TRANSACTION_READ_COMMITTED;
+        try {
+            con.setTransactionIsolation(level);
+        } catch (SQLException e) {
+            System.err.println("Setting transaction isolation level failed (read committed).");
+            e.printStackTrace();
+        }
+        int cur;
+        try {
+            cur = con.getTransactionIsolation();
+            System.out.println("Level: " + cur);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        try {
+            rs = st.executeQuery(query);                
+            if (rs.next() && rs != null) {
+                do {
+                    result.add(rs.getString(1));
+                } while (rs.next() && rs != null);
+            }
+        } catch (SQLException e) {
+            System.err.println("Query could not be executed (read committed).");
+            e.printStackTrace();
+        }
+        return result;
+    }
     
     /**
      * send query to database (serializable)
@@ -234,5 +270,41 @@ public class DBConnect {
             System.err.println("Query could not be executed (serializable).");
             e.printStackTrace();
         }
+    }
+    
+    /**
+     * send query to database (read committed)
+     */
+    public ArrayList<String> retrieveSeatsSerializable(String query) {
+    
+        ArrayList<String> result = new ArrayList<String>();
+        
+        System.out.println("read committed");
+        int level = Connection.TRANSACTION_SERIALIZABLE;
+        try {
+            con.setTransactionIsolation(level);
+        } catch (SQLException e) {
+            System.err.println("Setting transaction isolation level failed (serializable).");
+            e.printStackTrace();
+        }
+        int cur;
+        try {
+            cur = con.getTransactionIsolation();
+            System.out.println("Level: " + cur);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        try {
+            rs = st.executeQuery(query);                
+            if (rs.next() && rs != null) {
+                do {
+                    result.add(rs.getString(1));
+                } while (rs.next() && rs != null);
+            }
+        } catch (SQLException e) {
+            System.err.println("Query could not be executed (serializable).");
+            e.printStackTrace();
+        }
+        return result;
     }
 }
