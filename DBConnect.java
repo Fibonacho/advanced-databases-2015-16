@@ -71,7 +71,7 @@ public class DBConnect {
     public void createTableScheme() {
         
         String createTableSQL = "create table flight_seats("
-                                + "id integer not null, "
+                                + "id integer not null check (id > 0 and id <= 200), "
                                 + "availability char check (availability in (0,1)), "
                                 + "primary key (id)"
                                 + ")"
