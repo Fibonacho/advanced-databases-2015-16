@@ -11,6 +11,8 @@ public class DBConnect {
     Connection con = null;
     Statement st   = null;
     ResultSet rs   = null;
+    ArrayList<Integer> numbOfSecureSeatRestarts = new ArrayList<Integer>();
+    ArrayList<Integer> numbOfAvailabilityRestarts = new ArrayList<Integer>();
 
     /**
      * constructor
@@ -35,6 +37,26 @@ public class DBConnect {
         }
     }
 
+    /**
+     * print numbOfSecureSeatRestarts
+     */
+    public void printNumbOfSecureSeatRestarts() {        
+        for (int i = 0; i < numbOfSecureSeatRestarts.size(); i++) {
+            System.out.print(numbOfSecureSeatRestarts.get(i) + "; ");
+        }
+        System.out.println("\nSecure seat tries:  " + numbOfSecureSeatRestarts.size());
+    }
+    
+    /**
+     * print numbOfRestarts
+     */
+    public void printNumbOfAvailabilityRestarts() {        
+        for (int i = 0; i < numbOfAvailabilityRestarts.size(); i++) {
+            System.out.print(numbOfAvailabilityRestarts.get(i) + "; ");
+        }
+        System.out.println("\nAvailability tries: " + numbOfAvailabilityRestarts.size());
+    }
+    
     /**
      * select * from table
      */
@@ -73,7 +95,7 @@ public class DBConnect {
         
         String createTableSQL = "CREATE TABLE flight_seats("
                                 + "id integer not null check (id > 0 and id <= 200), "
-                                + "availability char check (availability in (0,1)), "
+                                + "availability integer check (availability in (0,1)), "
                                 + "primary key (id)"
                                 + ")";
 
@@ -109,7 +131,7 @@ public class DBConnect {
         ArrayList<Integer> result = new ArrayList<Integer>();
         
         try {
-            rs = st.executeQuery("SELECT id FROM flight_seats where availability = 1");            
+            rs = st.executeQuery("SELECT id FROM flight_seats WHERE availability = 1");            
             if (rs != null) {
                 while (rs.next()) {
                     result.add(rs.getInt(1));
@@ -193,7 +215,7 @@ public class DBConnect {
             isolationLevel = "serializable";
             level = Connection.TRANSACTION_SERIALIZABLE;           
         }
-        System.out.println("Secure seat with " + isolationLevel);
+        //System.out.println("Query " + qryID + ": Secure seat with " + isolationLevel);
         
         try {
             con.setTransactionIsolation(level);
@@ -215,9 +237,8 @@ public class DBConnect {
         while (!ok) {
             loops++;
             try {
-                System.out.println("EXECUTE QUERY " + qryID + "; TRY: " + loops);
+                System.out.println("QueryID: " + qryID + "; SECURE SEAT with " + isolationLevel + "; TRY: " + loops);
                 st.execute(query);
-                ok = true;
             } catch (SQLException ex1) {
                 System.err.println("Query could not be executed; rollback and try again.");
                 ex1.printStackTrace();
@@ -228,7 +249,10 @@ public class DBConnect {
                     System.err.println("Could not rollback.");
                     ex2.printStackTrace();
                 }
+                continue;
             }
+            ok = true;
+            numbOfSecureSeatRestarts.add(loops);
         }
     }
   
@@ -249,7 +273,7 @@ public class DBConnect {
             isolationLevel = "serializable";
             level = Connection.TRANSACTION_SERIALIZABLE;
         }
-        System.out.println(isolationLevel);
+        //System.out.println("Query " + qryID + ": Retrieve availability with " + isolationLevel);
         
         try {
             con.setTransactionIsolation(level);
@@ -258,11 +282,11 @@ public class DBConnect {
             e.printStackTrace();
         }
         
-        int cur;
         try {
-            cur = con.getTransactionIsolation();
-            System.out.println("Level: " + cur);
+            int cur = con.getTransactionIsolation();
+            //System.out.println("Level: " + cur);
         } catch (SQLException e) {
+            System.err.println("getTransactionIsolation() FAILED!");
             e.printStackTrace();
         }
         
@@ -271,14 +295,21 @@ public class DBConnect {
         while (!ok) {
             loops++;
             try {
-                System.out.println("RETRIEVE AVAILABILITY - query " + qryID + "; TRY: " + loops);
+                System.out.println("QueryID: " + qryID + "; RETRIEVE AVAILABILITY with " + isolationLevel + "; TRY: " + loops);
                 rs = st.executeQuery(query);                
                 if (rs != null && rs.next()) {
                     do {
                         result.add(rs.getInt(1));
                     } while (rs != null && rs.next());
+                }                
+                if (result.size() <= 200) {
+                    // must not be greater than 200
+                    ok = true;
+                } else {
+                    // try again
+                    result = null;
+                    continue;
                 }
-                ok = true;
             } catch (SQLException ex) {
                 System.err.println("Query could not be executed, rollback and try again.");
                 ex.printStackTrace();
@@ -287,8 +318,9 @@ public class DBConnect {
                 } catch (SQLException ex1) {
                     ex1.printStackTrace();
                 }
+                continue;
             }
-            
+            numbOfAvailabilityRestarts.add(loops);
         }
         return result;
     }
