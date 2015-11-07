@@ -50,13 +50,13 @@ public class DBConnect {
     /**
      * drop table content and scheme
      */
-    public void dropTable(String table) {
+    public void dropTable() {
         
-        String deleteTableSQL = "drop table " + table;
+        String deleteTableSQL = "drop table flight_seats";
         try {
             st.executeUpdate(deleteTableSQL);
         } catch (SQLException e) {
-            System.err.println("Could not drop table '" + table + "'.");
+            System.err.println("Could not drop table 'flight_seats'.");
             e.printStackTrace();
         }
     }
@@ -104,16 +104,16 @@ public class DBConnect {
     /**
      * retrieve a list (of available seats)
      */
-    public ArrayList<String> getList(String query) {
+    public ArrayList<Integer> getList(String query) {
         
-        ArrayList<String> result = new ArrayList<String>();
+        ArrayList<Integer> result = new ArrayList<Integer>();
         try {
             rs = st.executeQuery(query);
             
-            if (rs.next()) {
-                do {
-                    result.add(rs.getString(1));
-                } while (rs.next());
+            if (rs != null) {
+                while (rs.next()) {
+                    result.add(rs.getInt(1));
+                } 
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -157,11 +157,11 @@ public class DBConnect {
     /** 
      * The booking is done within 3 steps - this method is used for testing (in Test.java)
      */
-    public void bookSeat(String tableName) {
+    public void bookSeat() {
         
         // 1. Retrieve list of available seats (selection of available seat ids). -> i.e. rows where availability = 1
-        String query = "select id from " + tableName + " where availability = 1";
-        ArrayList<String> availSeats = this.getList(query);
+        String query = "select id from flight_seats where availability = 1";
+        ArrayList<Integer> availSeats = this.getList(query);
         System.out.println("number of available seats: " + availSeats.size());
         
         // 2. Give the customer some time (decision time is 1 second) to decide on a seat (a random seat id from the list returned in point 1).
@@ -170,11 +170,11 @@ public class DBConnect {
         int high        = availSeats.size(); // upper bound for random index
         int randomIndex = r.nextInt(high-low) + low; // compute random index
         
-        String randomSeat = availSeats.get(randomIndex); // select (random) seat number
+        Integer randomSeat = availSeats.get(randomIndex); // select (random) seat number
         System.out.println("SEAT: " + randomSeat);
         
         // 3. Secure a seat (update the availability of the chosen seat to false).
-        String secureSeat = "update " + tableName + " set availability = 0 where id = " + randomSeat;
+        String secureSeat = "update flight_seats set availability = 0 where id = " + randomSeat;
         boolean ok = this.updateData(secureSeat);
         System.out.println("booked? " + ok);
     }    
@@ -210,9 +210,9 @@ public class DBConnect {
     /**
      * send query to database (read committed)
      */
-    public ArrayList<String> retrieveSeatsReadCommitted(String query) {
+    public ArrayList<Integer> retrieveSeatsReadCommitted(String query) {
     
-        ArrayList<String> result = new ArrayList<String>();
+        ArrayList<Integer> result = new ArrayList<Integer>();
         
         System.out.println("read committed");
         int level = Connection.TRANSACTION_READ_COMMITTED;
@@ -231,10 +231,10 @@ public class DBConnect {
         }
         try {
             rs = st.executeQuery(query);                
-            if (rs.next() && rs != null) {
+            if (rs != null && rs.next()) {
                 do {
-                    result.add(rs.getString(1));
-                } while (rs.next() && rs != null);
+                    result.add(rs.getInt(1));
+                } while (rs != null && rs.next());
             }
         } catch (SQLException e) {
             System.err.println("Query could not be executed (read committed).");
@@ -275,11 +275,11 @@ public class DBConnect {
     /**
      * send query to database (read committed)
      */
-    public ArrayList<String> retrieveSeatsSerializable(String query) {
+    public ArrayList<Integer> retrieveSeatsSerializable(String query) {
     
-        ArrayList<String> result = new ArrayList<String>();
+        ArrayList<Integer> result = new ArrayList<Integer>();
         
-        System.out.println("read committed");
+        System.out.println("serializable");
         int level = Connection.TRANSACTION_SERIALIZABLE;
         try {
             con.setTransactionIsolation(level);
@@ -294,12 +294,12 @@ public class DBConnect {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        try {
+        try {              
             rs = st.executeQuery(query);                
-            if (rs.next() && rs != null) {
+            if (rs != null && rs.next()) {
                 do {
-                    result.add(rs.getString(1));
-                } while (rs.next() && rs != null);
+                    result.add(rs.getInt(1));
+                } while (rs != null && rs.next());
             }
         } catch (SQLException e) {
             System.err.println("Query could not be executed (serializable).");
