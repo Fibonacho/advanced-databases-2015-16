@@ -42,17 +42,10 @@ class Transaction extends Thread {
                 System.out.println("\nQUERY " + id);
                 
                 // 1. Retrieve list of available seats
-                query = "select id from flight_seats where availability = 1";
+                query = "SELECT id FROM flight_seats WHERE availability = 1";
                 ArrayList<Integer> availSeats = new ArrayList<Integer>();
-                //availSeats = db.getList(query);
-                
-                if (mode == 0) {
-                    availSeats = db.retrieveSeatsReadCommitted(query);
-                } else if (mode == 1) {
-                    availSeats = db.retrieveSeatsSerializable(query);
-                }
-                
-                System.out.println("Number of available seats: " + availSeats.size());
+                availSeats = db.setIsolationLevelAndRetrieveSeats(query, mode, id);
+                System.out.println(id + ": Number of available seats = " + availSeats.size());
 
                 // 2. Give the customer some time (decision time is 1 second) to decide on a seat
                 sleep(ms);
@@ -65,12 +58,8 @@ class Transaction extends Thread {
                 System.out.println("SEAT: " + randomSeat);
 
                 // 3. Secure a seat (update the availability of the chosen seat to false).
-                query = "update flight_seats set availability = 0 where id = " + randomSeat;
-                
-                if (mode == 0)
-                    db.sendReadCommitted(query);
-                else if (mode == 1)
-                    db.sendSerializable(query);
+                query = "UPDATE flight_seats SET availability = 0 WHERE id = " + randomSeat;
+                db.setIsolationLevelAndSecureSeat(query, mode, id);
 
             } else if (this.qry == 2) { // QUERY 2 TODO
                 System.out.println("\nQUERY " + id);
@@ -82,8 +71,7 @@ class Transaction extends Thread {
 }
 
 /**
- * Run numThreads transactions, where at most maxConcurrent transactions can run in parallel.
- * params: numThreads maxConcurrent
+ * Run <numThreads> transactions, where at most <maxConcurrent> transactions can run in parallel.
  */
 public class ConcurrentTransactions {
 
@@ -106,21 +94,20 @@ public class ConcurrentTransactions {
         db.fillTable();
         
         // retrieve list of available seats (number has to be 200 at the beginning)
-        ArrayList<Integer> test = db.getList("select id from flight_seats where availability = 1");
+        ArrayList<Integer> test = db.getList();
         System.out.println("NUMB: " + test.size());
         
-        long begin = System.currentTimeMillis();
-
+        long begin = System.currentTimeMillis();   // for measuring runtime in the end
         int numThreads      = 200;                 // There are 200 customers trying to book a seat. 
         int[] kTravelAgents = {1, 2, 4, 6, 8, 10}; // The number of travel agents is a parameter k, where k in {1, 2, 4, 6, 8, 10}
-        int maxConcurrent   = kTravelAgents[5];    // Perform the experiment for each k.
+        int maxConcurrent   = kTravelAgents[3];    // Perform the experiment for each k.
 
         // create numThreads transactions - Each customer books a seat in a separate transaction.
         Transaction[] trans = new Transaction[numThreads];
         
         for (int i = 0; i < trans.length; i++) {
             // mode: 0 - read committed, 1 - serializable
-            int mode = 0;
+            int mode = 1;
             int qry  = 1;
             trans[i] = new Transaction(i + 1, db, qry, mode);
         }
@@ -147,7 +134,7 @@ public class ConcurrentTransactions {
             }
         } while (ok);
         
-        test = db.getList("select id from flight_seats where availability = 1");
+        test = db.getList();
         System.out.println("NUMB in the end: " + test.size());
     }
 }
