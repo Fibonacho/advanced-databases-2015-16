@@ -100,7 +100,7 @@ public class ConcurrentTransactions {
         long begin = System.currentTimeMillis();   // for measuring runtime in the end
         int numThreads      = 200;                 // There are 200 customers trying to book a seat. 
         int[] kTravelAgents = {1, 2, 4, 6, 8, 10}; // The number of travel agents is a parameter k, where k in {1, 2, 4, 6, 8, 10}
-        int maxConcurrent   = kTravelAgents[3];    // Perform the experiment for each k.
+        int maxConcurrent   = kTravelAgents[5];    // Perform the experiment for each k.
 
         // create numThreads transactions - Each customer books a seat in a separate transaction.
         Transaction[] trans = new Transaction[numThreads];
@@ -135,6 +135,9 @@ public class ConcurrentTransactions {
         } while (ok);
         
         test = db.getList();
-        System.out.println("NUMB in the end: " + test.size());
+        System.out.println("available seats in the end: " + test.size());
+        
+        db.printNumbOfSecureSeatRestarts();
+        db.printNumbOfAvailabilityRestarts();
     }
 }
