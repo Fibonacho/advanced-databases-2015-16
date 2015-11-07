@@ -17,7 +17,7 @@ public class DBConnect {
      */
     public DBConnect() {
 
-        String host = "localhost"; // for local use only!
+        String host = "localhost"; // for local use
         String pwd  = "abc";
         String user = "testuser";
         
@@ -28,19 +28,20 @@ public class DBConnect {
             con = DriverManager.getConnection(url, user, pwd);
             st = con.createStatement();
             System.err.println("Connection established.");
-        } catch (Exception e) {
+        } catch (Exception ex) {
             System.err.println("Could not establish connection.");
-            e.printStackTrace();
+            ex.printStackTrace();
             return;
         }
     }
 
     /**
-     * select * from tableName
+     * select * from table
      */
-    public void selectAllData(String tableName) throws SQLException {
+    public void selectAllData(String table) throws SQLException {
         
-        rs = st.executeQuery("SELECT * FROM " + tableName);
+        rs = st.executeQuery("SELECT * FROM " + table);
+        
         while(rs.next()) {
             System.out.print(rs.getInt(1) + "\t");
             System.out.println(rs.getString(2));
@@ -48,40 +49,39 @@ public class DBConnect {
     }
     
     /**
-     * drop table content and scheme
+     * drop whole table (content and scheme)
      */
     public void dropTable() {
         
-        String deleteTableSQL = "drop table flight_seats";
+        String deleteTableSQL = "DROP TABLE flight_seats";
+        
         try {
             st.executeUpdate(deleteTableSQL);
-        } catch (SQLException e) {
+        } catch (SQLException ex) {
             System.err.println("Could not drop table 'flight_seats'.");
-            e.printStackTrace();
+            ex.printStackTrace();
         }
     }
     
     /** from assignment:
      *  We imitate flight seat reservation procedure. The seats availability is stored in the following table:
      *      flight_seats[id, availability]
-     *      - There are 200 seats.
-     *      - Id is a primary key with integer values from 1 to 200.
+     *      - There are 200 seats; Id is a primary key with integer values from 1 to 200.
      *      - Availability is a boolean value indicating if the seat is available or not (initially true).
      */
     public void createTableScheme() {
         
-        String createTableSQL = "create table flight_seats("
+        String createTableSQL = "CREATE TABLE flight_seats("
                                 + "id integer not null check (id > 0 and id <= 200), "
                                 + "availability char check (availability in (0,1)), "
                                 + "primary key (id)"
-                                + ")"
-                                ;
+                                + ")";
 
         try {
             st.executeUpdate(createTableSQL);
-        } catch (SQLException e) {
+        } catch (SQLException ex) {
             System.err.println("Could not create table 'flight_seats'.");
-            e.printStackTrace();
+            ex.printStackTrace();
         }        
     }
     
@@ -92,11 +92,11 @@ public class DBConnect {
         
         for (int i = 1; i <= 200; i++) {
             try {
-                String qry = "insert into flight_seats values (" + i + "," + "1)";
+                String qry = "INSERT INTO flight_seats VALUES (" + i + "," + "1)";
                 st.executeUpdate(qry);
-            } catch (SQLException e) {
-                e.printStackTrace();
-                System.exit(0);
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+                System.exit(1);
             }
         }
     }
@@ -104,19 +104,19 @@ public class DBConnect {
     /**
      * retrieve a list (of available seats)
      */
-    public ArrayList<Integer> getList(String query) {
+    public ArrayList<Integer> getList() {
         
         ArrayList<Integer> result = new ArrayList<Integer>();
+        
         try {
-            rs = st.executeQuery(query);
-            
+            rs = st.executeQuery("SELECT id FROM flight_seats where availability = 1");            
             if (rs != null) {
                 while (rs.next()) {
                     result.add(rs.getInt(1));
                 } 
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         }        
         return result;
     }
@@ -160,8 +160,7 @@ public class DBConnect {
     public void bookSeat() {
         
         // 1. Retrieve list of available seats (selection of available seat ids). -> i.e. rows where availability = 1
-        String query = "select id from flight_seats where availability = 1";
-        ArrayList<Integer> availSeats = this.getList(query);
+        ArrayList<Integer> availSeats = this.getList();
         System.out.println("number of available seats: " + availSeats.size());
         
         // 2. Give the customer some time (decision time is 1 second) to decide on a seat (a random seat id from the list returned in point 1).
@@ -174,54 +173,91 @@ public class DBConnect {
         System.out.println("SEAT: " + randomSeat);
         
         // 3. Secure a seat (update the availability of the chosen seat to false).
-        String secureSeat = "update flight_seats set availability = 0 where id = " + randomSeat;
+        String secureSeat = "UPDATE flight_seats SET availability = 0 WHERE id = " + randomSeat;
         boolean ok = this.updateData(secureSeat);
         System.out.println("booked? " + ok);
     }    
     
     /**
-     * send query to database (read committed)
+     * set isolation level and send query to database
+     * mode: 0 - read committed, 1 - serializable
      */
-    public void sendReadCommitted(String query) {
+    public void setIsolationLevelAndSecureSeat(String query, int mode, int qryID) {
         
-        System.out.println("read committed");
-        int level = Connection.TRANSACTION_READ_COMMITTED;
+        int level = -1;
+        String isolationLevel = "";
+        if (mode == 0) {
+            isolationLevel = "read committed";
+            level = Connection.TRANSACTION_READ_COMMITTED;
+        } else if (mode == 1) {
+            isolationLevel = "serializable";
+            level = Connection.TRANSACTION_SERIALIZABLE;           
+        }
+        System.out.println("Secure seat with " + isolationLevel);
+        
         try {
             con.setTransactionIsolation(level);
-        } catch (SQLException e) {
-            System.err.println("Setting transaction isolation level failed (read committed).");
-            e.printStackTrace();
+        } catch (SQLException ex) {
+            System.err.println("Setting transaction isolation level failed.");
+            ex.printStackTrace();
         }
+        
         int cur;
         try {
             cur = con.getTransactionIsolation();
             System.out.println("Level: " + cur);
-        } catch (SQLException e) {
-            e.printStackTrace();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
         }
-        try {
-            st.execute(query);
-        } catch (SQLException e) {
-            System.err.println("Query could not be executed (read committed).");
-            e.printStackTrace();
+        
+        boolean ok = false;
+        int loops = 0; // count tries per transaction (customer)
+        while (!ok) {
+            loops++;
+            try {
+                System.out.println("EXECUTE QUERY " + qryID + "; TRY: " + loops);
+                st.execute(query);
+                ok = true;
+            } catch (SQLException ex1) {
+                System.err.println("Query could not be executed; rollback and try again.");
+                ex1.printStackTrace();
+    
+                try {
+                    con.rollback();
+                } catch (SQLException ex2) {
+                    System.err.println("Could not rollback.");
+                    ex2.printStackTrace();
+                }
+            }
         }
     }
   
     /**
-     * send query to database (read committed)
+     * set isolation level, send query to database and retrieve available seats
+     * mode: 0 - read committed, 1 - serializable
      */
-    public ArrayList<Integer> retrieveSeatsReadCommitted(String query) {
+    public ArrayList<Integer> setIsolationLevelAndRetrieveSeats(String query, int mode, int qryID) {
     
         ArrayList<Integer> result = new ArrayList<Integer>();
         
-        System.out.println("read committed");
-        int level = Connection.TRANSACTION_READ_COMMITTED;
+        int level = -1;
+        String isolationLevel = "";
+        if (mode == 0) {
+            isolationLevel = "read committed";
+            level = Connection.TRANSACTION_READ_COMMITTED;
+        } else if (mode == 1) {
+            isolationLevel = "serializable";
+            level = Connection.TRANSACTION_SERIALIZABLE;
+        }
+        System.out.println(isolationLevel);
+        
         try {
             con.setTransactionIsolation(level);
         } catch (SQLException e) {
-            System.err.println("Setting transaction isolation level failed (read committed).");
+            System.err.println("Setting transaction isolation level failed (" + isolationLevel + ").");
             e.printStackTrace();
         }
+        
         int cur;
         try {
             cur = con.getTransactionIsolation();
@@ -229,81 +265,30 @@ public class DBConnect {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        try {
-            rs = st.executeQuery(query);                
-            if (rs != null && rs.next()) {
-                do {
-                    result.add(rs.getInt(1));
-                } while (rs != null && rs.next());
+        
+        boolean ok = false;
+        int loops = 0;
+        while (!ok) {
+            loops++;
+            try {
+                System.out.println("RETRIEVE AVAILABILITY - query " + qryID + "; TRY: " + loops);
+                rs = st.executeQuery(query);                
+                if (rs != null && rs.next()) {
+                    do {
+                        result.add(rs.getInt(1));
+                    } while (rs != null && rs.next());
+                }
+                ok = true;
+            } catch (SQLException ex) {
+                System.err.println("Query could not be executed, rollback and try again.");
+                ex.printStackTrace();
+                try {
+                    con.rollback();
+                } catch (SQLException ex1) {
+                    ex1.printStackTrace();
+                }
             }
-        } catch (SQLException e) {
-            System.err.println("Query could not be executed (read committed).");
-            e.printStackTrace();
-        }
-        return result;
-    }
-    
-    /**
-     * send query to database (serializable)
-     */
-    public void sendSerializable(String query) {
-        
-        System.out.println("serializable");
-        int level = Connection.TRANSACTION_SERIALIZABLE;
-        try {
-            con.setTransactionIsolation(level);
-        } catch (SQLException e) {
-            System.err.println("Setting transaction isolation level failed (serializable).");
-            e.printStackTrace();
-        }
-        int cur;
-        try {
-            cur = con.getTransactionIsolation();
-            System.out.println("Level: " + cur);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        
-        try {
-            st.execute(query);
-        } catch (SQLException e) {
-            System.err.println("Query could not be executed (serializable).");
-            e.printStackTrace();
-        }
-    }
-    
-    /**
-     * send query to database (read committed)
-     */
-    public ArrayList<Integer> retrieveSeatsSerializable(String query) {
-    
-        ArrayList<Integer> result = new ArrayList<Integer>();
-        
-        System.out.println("serializable");
-        int level = Connection.TRANSACTION_SERIALIZABLE;
-        try {
-            con.setTransactionIsolation(level);
-        } catch (SQLException e) {
-            System.err.println("Setting transaction isolation level failed (serializable).");
-            e.printStackTrace();
-        }
-        int cur;
-        try {
-            cur = con.getTransactionIsolation();
-            System.out.println("Level: " + cur);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        try {              
-            rs = st.executeQuery(query);                
-            if (rs != null && rs.next()) {
-                do {
-                    result.add(rs.getInt(1));
-                } while (rs != null && rs.next());
-            }
-        } catch (SQLException e) {
-            System.err.println("Query could not be executed (serializable).");
-            e.printStackTrace();
+            
         }
         return result;
     }
