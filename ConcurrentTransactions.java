@@ -37,19 +37,20 @@ class Transaction extends Thread {
 
         try {
             String query = "";
-            String tableName = "flight_seats";
 
             if (this.qry == 1) { // QUERY 1
                 System.out.println("\nQUERY " + id);
                 
                 // 1. Retrieve list of available seats
-                query = "select id from " + tableName + " where availability = 1";
-                ArrayList<String> availSeats = new ArrayList<String>();
+                query = "select id from flight_seats where availability = 1";
+                ArrayList<Integer> availSeats = new ArrayList<Integer>();
+                //availSeats = db.getList(query);
                 
-                if (mode == 0)
+                if (mode == 0) {
                     availSeats = db.retrieveSeatsReadCommitted(query);
-                else if (mode == 1)
+                } else if (mode == 1) {
                     availSeats = db.retrieveSeatsSerializable(query);
+                }
                 
                 System.out.println("Number of available seats: " + availSeats.size());
 
@@ -60,11 +61,11 @@ class Transaction extends Thread {
                 int high        = availSeats.size(); // upper bound for random index
                 int randomIndex = r.nextInt(high-low) + low; // compute random index
 
-                String randomSeat = availSeats.get(randomIndex); // select (random) seat number
+                Integer randomSeat = availSeats.get(randomIndex); // select (random) seat number
                 System.out.println("SEAT: " + randomSeat);
 
                 // 3. Secure a seat (update the availability of the chosen seat to false).
-                query = "update " + tableName + " set availability = 0 where id = " + randomSeat;
+                query = "update flight_seats set availability = 0 where id = " + randomSeat;
                 
                 if (mode == 0)
                     db.sendReadCommitted(query);
@@ -99,25 +100,22 @@ public class ConcurrentTransactions {
         }
         
         DBConnect db = new DBConnect();
-        String tableName = "flight_seats";
-        db.dropTable(tableName);
+        // reset table every time to initial state (200 seats available)
+        db.dropTable();
         db.createTableScheme();
         db.fillTable();
         
-        long begin = System.currentTimeMillis();
+        // retrieve list of available seats (number has to be 200 at the beginning)
+        ArrayList<Integer> test = db.getList("select id from flight_seats where availability = 1");
+        System.out.println("NUMB: " + test.size());
         
-        /** There are 200 customers trying to book a seat. 
-         *  Each customer books a seat in a separate transaction.
-         *  Imitate multiple travel agents that book the seats for the customers. 
-         *  Perform the experiment for each k. k is the number of threads performing 
-         *  the booking transactions. One thread makes one reservation at a time.
-         */
-        int numThreads      = 200; 
-        // The number of travel agents is a parameter k, where k in {1, 2, 4, 6, 8, 10}
-        int[] kTravelAgents = {1, 2, 4, 6, 8, 10};
-        int maxConcurrent   = kTravelAgents[3];
+        long begin = System.currentTimeMillis();
 
-        // create numThreads transactions
+        int numThreads      = 200;                 // There are 200 customers trying to book a seat. 
+        int[] kTravelAgents = {1, 2, 4, 6, 8, 10}; // The number of travel agents is a parameter k, where k in {1, 2, 4, 6, 8, 10}
+        int maxConcurrent   = kTravelAgents[5];    // Perform the experiment for each k.
+
+        // create numThreads transactions - Each customer books a seat in a separate transaction.
         Transaction[] trans = new Transaction[numThreads];
         
         for (int i = 0; i < trans.length; i++) {
@@ -128,6 +126,9 @@ public class ConcurrentTransactions {
         }
         
         // start all transactions using a thread pool 
+        // Imitate multiple travel agents that book the seats for the customers. 
+        // k is the number of threads performing the booking transactions. 
+        // One thread makes one reservation at a time.
         ExecutorService pool = Executors.newFixedThreadPool(maxConcurrent);
         
         for (int i = 0; i < trans.length; i++) {
@@ -136,6 +137,7 @@ public class ConcurrentTransactions {
         }
         pool.shutdown(); // end program after all transactions are done
         
+        // check for termination
         boolean ok = true;        
         do {
             if (pool.isTerminated()) {        
@@ -144,29 +146,8 @@ public class ConcurrentTransactions {
                 ok = false;
             }
         } while (ok);
+        
+        test = db.getList("select id from flight_seats where availability = 1");
+        System.out.println("NUMB in the end: " + test.size());
     }
 }
-
-/** Perform the following experiment:
-    - There are 200 customers trying to book a seat. 
-      Each customer books a seat in a separate transaction.
-    - Imitate multiple travel agents that book the seats for the customers. 
-      The number of travel agents is a parameter k, where k in 
-      {1,2,4,6,8,10}. 
-      Perform the experiment for each k. k is the number of threads 
-      performing the booking transactions. One thread makes one 
-      reservation at a time.
-    - Evaluate two versions of the booking transaction : 
-      a) as a single transaction including all three steps, and 
-      b) split into two smaller transactions: 
-         b1) retrieving available seats, 
-         b2) securing a seat. In case b), 
-         the decision time is not part of transactions but has to be 
-         considered.
-    - Perform the experiment for two isolation levels: 
-      'read committed' and 'serializable'.
-    - Set explicitly row locking. 
-      If this is not possible, describe the locking mechanism.
-    - Restart the transactions until they commit (all customers 
-      book a seat).
- */
