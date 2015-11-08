@@ -13,8 +13,8 @@ class BookingTransaction extends Thread {
     // identifier of the transaction
     int id, mode, qry;
     Connection conn;
-    ResultSet  rs;
-    public int[]     tries   = new int[200];
+    ResultSet rs;
+    public int[] tries = new int[200];
     public boolean[] booking = new boolean[200];
 
     // constructor
@@ -117,7 +117,6 @@ class BookingTransaction extends Thread {
             e.printStackTrace();
         }
         System.out.println("transaction " + id + " terminated");
-        printTriesCounter();
     }
 
     // compute random seat number
@@ -131,20 +130,6 @@ class BookingTransaction extends Thread {
         System.out.println("SEAT: " + randomSeat);
         
         return randomSeat;
-    }
-
-    // print booking states
-    public void printBookingState() {        
-        for (int i = 0; i < booking.length; i++) {
-            System.out.println((i+1) + " booked? " + booking[i]);
-        }
-    }
-    
-    // print counted tries
-    public void printTriesCounter() {        
-        for (int i = 0; i < tries.length; i++) {
-            System.out.println((i+1) + " needed " + tries[i] + " tries.");
-        }
     }
 }
 
@@ -192,7 +177,7 @@ public class ExperimentA {
         long begin = System.currentTimeMillis();   // for measuring runtime in the end
         int numThreads      = 200;                 // There are 200 customers trying to book a seat. 
         int[] kTravelAgents = {1, 2, 4, 6, 8, 10}; // The number of travel agents is a parameter k, where k in {1, 2, 4, 6, 8, 10}
-        int maxConcurrent   = kTravelAgents[0];    // Perform the experiment for each k.
+        int maxConcurrent   = kTravelAgents[5];    // Perform the experiment for each k.
 
         // create numThreads transactions - Each customer books a seat in a separate transaction.
         BookingTransaction[] trans = new BookingTransaction[numThreads];
